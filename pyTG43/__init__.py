@@ -46,10 +46,10 @@ class Dwell(object):
     """Planned dwell point.
 
     Attributes:
-        x, y, z: x, y and z coordinates.
-        middle: coordinates of middle of source.
-        t: dwell time.
-        ends: list containing coordinates of each endd of the source.
+        x, y, z: x, y and z coordinates (cm).
+        middle: (x,y,z) coordinates of middle of source (cm).
+        t: dwell time (s).
+        ends: list containing coordinates of each endd of the source (cm).
     """
     def __init__(self, coords, t, L, app):
         """
@@ -89,12 +89,12 @@ class DosePoint(object):
     """Point at which dose is calcluated
 
     Attributes:
-        x, y, z: x, y and z coordinates of point.
-        coords: array containing coordinates.
+        x, y, z: x, y and z coordinates of point (cm).
+        coords: array containing (x,y,z) coordinates (cm).
         name: name of dose point.
         ref: DICOM dose point reference number.
-        dose: calculated dose.
-        tpsdose: TPS dose obtained from DICOM file.
+        dose: calculated dose (cGy).
+        tpsdose: TPS dose obtained from DICOM file (cGy).
     """
     def __init__(self, coords, rp, rs, name='', ref='', directory='.'):
         """
@@ -244,7 +244,7 @@ class ROI(object):
     Attributes:
         number: DICOM reference number.
         name: structure name.
-        coords: array of (x,y,z) co-ordinates defining the structure.
+        coords: array of (x,y,z) co-ordinates defining the structure (cm).
     """
     def __init__(self, number, name, rs):
         """

@@ -32,6 +32,7 @@ radial:
   coeffs: coefficients of polynomial fit (list)
   filename: filename for data containing radial data
 ```
+An error indicating that source length data is missing means that the source length is not present in the DICOM plan file (the case for some TPSes). Specify the source length (in cm) the `sourcespec.yaml` file using the `length:` attribute.
 
 ## Example calculation
 
