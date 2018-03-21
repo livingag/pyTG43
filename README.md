@@ -24,6 +24,15 @@ Data specifying the source dose rate constant, anisotropy factor, and radial dos
 
 A `.yaml` file is used to specify all required source data. The example shows the two available methods to specifying the radial dose function; with an n-th order polynomial, or with a table of input data to be interpolated.
 
+```
+delta: dose rate constant
+anisotropy:
+  filename: filename for data containing anisotropy data
+radial:
+  coeffs: coefficients of polynomial fit (list)
+  filename: filename for data containing radial data
+```
+
 ## Example calculation
 
 Example taken from Varian BrachyVision system with tandem and ovoid applicator in a square block of water. Can be run using `python example.py`

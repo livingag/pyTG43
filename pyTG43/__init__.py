@@ -7,6 +7,16 @@ import yaml
 from terminaltables import SingleTable
 
 def tpsComp(rp, rs, directory):
+    """Calculate and compare dose at reference points with TPS.
+
+    Args:
+        rp: pydicom object of RP file.
+        rs: pydicom object of RS file.
+        directory: directory containing source data.
+
+    Returns:
+        points: list of DosePoint objects.
+    """
 
     points = []
 
@@ -33,13 +43,30 @@ def tpsComp(rp, rs, directory):
 
 
 class Dwell(object):
+    """Planned dwell point.
+
+    Attributes:
+        x, y, z: x, y and z coordinates.
+        middle: coordinates of middle of source.
+        t: dwell time.
+        ends: list containing coordinates of each endd of the source.
+    """
     def __init__(self, coords, t, L, app):
+        """
+        Args:
+            coords: list containing x, y, and z coordinates of dwell point.
+            t: dwell time.
+            L: source length.
+            app: applicator object dwell point is a part of.
+        """
+
         self.x, self.y, self.z = coords
         self.middle = np.array(coords)
         self.t = t
         self.get_source_ends(app, L)
 
     def get_source_ends(self, app, L):
+        """Calculates coordinates of the ends of the source"""
         closestd = [+np.inf,+np.inf]
         closest = [0,0]
         for pt in app.coords:
@@ -59,7 +86,26 @@ class Dwell(object):
 
 
 class DosePoint(object):
+    """Point at which dose is calcluated
+
+    Attributes:
+        x, y, z: x, y and z coordinates of point.
+        coords: array containing coordinates.
+        name: name of dose point.
+        ref: DICOM dose point reference number.
+        dose: calculated dose.
+        tpsdose: TPS dose obtained from DICOM file.
+    """
     def __init__(self, coords, rp, rs, name='', ref='', directory='.'):
+        """
+        Args:
+            coords: list of dose point coordinates
+            rp: pydicom object of RP file.
+            rs: pydicom object of RS file.
+            name: name of dose point.
+            ref: DICOM dose point reference number.
+            directory: directory containing source data.
+        """
         self.x, self.y, self.z = coords
         self.coords = np.array(coords)
         self.name = name
@@ -71,6 +117,11 @@ class DosePoint(object):
         return self.name
 
     def get_tpsdose(self, rp):
+        """Get dose calculated by TPS for this point.
+
+        Args:
+            rp: pydicom object of RP file.
+        """
         tpsdose = 0
 
         if Tag(0x300a, 0x26) in rp[0x300a, 0x10][0].keys():
@@ -94,41 +145,57 @@ class DosePoint(object):
         self.tpsdose = tpsdose * 100
 
     def calc_dose(self, rp, rs, directory):
+        """Calculate dose for this point
+
+        Args:
+            rp: pydicom object of RP file.
+            rs: pydicom object of RS file.
+            directory: directory containing source data.
+        """
         r0 = 1
         theta0 = np.pi/2
         Sk = rp.SourceSequence[0].ReferenceAirKermaRate
-        L = rp.SourceSequence[0].ActiveSourceLength/10
 
         with open(directory+'/sourcespec.yaml','r') as stream:
             sourcespec = yaml.load(stream)
 
         source = sourcespec[rp.BrachyTreatmentType]
 
-        Delta = source['delta']
+        if Tag(0x300a, 0x21a) in rp.SourceSequence[0].keys():
+            L = rp.SourceSequence[0].ActiveSourceLength/10
+        elif 'length' in source.keys():
+            L = source['length']
+        else:
+            raise ValueError('Source length data missing!')
 
-        Fi = np.loadtxt(directory+'/'+source['anisotropy']['filename'], delimiter=',')
-        Fi = interp2d(Fi[0,:][1:],Fi[:,0][1:],Fi[1:,1:])
-        def F(r,theta):
-            if r > 15:
-                return Fi(15,theta)
+        try:
+            Delta = source['delta']
+
+            Fi = np.loadtxt(directory+'/'+source['anisotropy']['filename'], delimiter=',')
+            Fi = interp2d(Fi[0,:][1:],Fi[:,0][1:],Fi[1:,1:])
+            def F(r,theta):
+                if r > 15:
+                    return Fi(15,theta)
+                else:
+                    return Fi(r,theta)
+
+            if 'filename' in source['radial'].keys():
+                g = np.loadtxt(directory+'/'+source['radial']['filename'], delimiter=',')
+                g = interp1d(g[:,0],g[:,1])
             else:
-                return Fi(r,theta)
-
-        if 'filename' in source['radial'].keys():
-            g = np.loadtxt(directory+'/'+source['radial']['filename'], delimiter=',')
-            g = interp1d(g[:,0],g[:,1])
-        elif 'coeff' in source['radial'].keys():
-            coeff = source['radial']['coeff']
-            def g(r):
-                if r < 0.15:
-                    return g(0.15)
-                elif r > 15:
-                    return g(12)*np.exp((r-12)/(15-12)*(np.log(g(15))-np.log(g(12))))
-                nth = len(coeff)
-                out = 0
-                for n in range(nth):
-                    out += coeff[n]*r**n
-                return out
+                coeff = source['radial']['coeff']
+                def g(r):
+                    if r < 0.15:
+                        return g(0.15)
+                    elif r > 15:
+                        return g(12)*np.exp((r-12)/(15-12)*(np.log(g(15))-np.log(g(12))))
+                    nth = len(coeff)
+                    out = 0
+                    for n in range(nth):
+                        out += coeff[n]*r**n
+                    return out
+        except KeyError as e:
+            raise ValueError('Source data not specified correctly!')
 
         G0 = 2*np.arctan((L/2)/r0)/(L*r0*np.sin(theta0))
 
@@ -172,13 +239,27 @@ class DosePoint(object):
 
 
 class ROI(object):
+    """DICOM structure.
+
+    Attributes:
+        number: DICOM reference number.
+        name: structure name.
+        coords: array of (x,y,z) co-ordinates defining the structure.
+    """
     def __init__(self, number, name, rs):
+        """
+        Args:
+            number: DICOM reference number.
+            name: structure name.
+            rs: pydicom object of RS file.
+        """
         self.number = number
         self.name = name
         self.coords = np.empty((0,3))
         self.get_coords(rs)
 
     def get_coords(self, rs):
+        """Get co-ordinates for this structure from the RS file."""
         for roi in rs.ROIContourSequence:
             if roi[0x3006,0x84].value == self.number and Tag(0x3006, 0x40) in roi.keys():
                 for sli in roi.ContourSequence:
