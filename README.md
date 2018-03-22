@@ -22,7 +22,7 @@ For each dwell point, the orientation of the line source is determined by the ve
 
 ## Source specification data
 
-Data specifying the source dose rate constant, anisotropy factor, and radial dose function is required. An example set of data (not corresponding to any real source) is shown in the `example/` directory. Only one of each source type can be input at any time.
+Data specifying the source dose rate constant, anisotropy factor, and radial dose function is required. An example set of data from ESTRO is shown in the `example/` directory. Only one of each source type can be input at any time.
 
 A `.yaml` file is used to specify all required source data. The example shows the two available methods to specifying the radial dose function; with an n-th order polynomial, or with a table of input data to be interpolated.
 

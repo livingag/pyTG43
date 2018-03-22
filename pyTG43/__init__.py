@@ -101,8 +101,8 @@ class Source(object):
             r: distance (cm).
             theta: angle (radians).
         """
-        if r > 15:
-            return self.Fi(15,theta)
+        if r > 10:
+            return self.Fi(10,theta)
         else:
             return self.Fi(r,theta)
     def g(self, r):
@@ -116,8 +116,8 @@ class Source(object):
         else:
             if r < 0.15:
                 return self.g(0.15)
-            elif r > 15:
-                return self.g(12)*np.exp((r-12)/(15-12)*(np.log(self.g(15))-np.log(self.g(12))))
+            elif r > 10:
+                return self.g(8)*np.exp((r-8)/(10-8)*(np.log(self.g(10))-np.log(self.g(8))))
             nth = len(self.coeff)
             out = 0
             for n in range(nth):

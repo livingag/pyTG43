@@ -1,11 +1,11 @@
 HDR:
-  delta: 1.117
+  delta: 1.1165
   anisotropy:
     filename: 'anisotropyHDR.csv'
   radial:
-    coeff: [0.99251, 9.293e-3, -1.8104e-3, -2.8788e-5]
+    filename: 'radialHDR.csv'
 PDR:
-  delta: 1.124
+  delta: 1.123
   anisotropy:
     filename: 'anisotropyHDR.csv'
   radial:
