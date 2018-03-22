@@ -14,7 +14,7 @@ python setup.py install
 
 ## Calculation details
 
-The co-ordinate system used by the software is [IEC 61217](ftp://dicom.nema.org/MEDICAL/dicom/2015b/output/chtml/part03/figures/PS3.3_C.8.8.25-2a.svg), which is used by most planning systems. Keep in mind this is different from the [DICOM](http://dicom.nema.org/DICOM/2013/output/chtml/part17/figures/PS3.17_FFF.1.2-3.svg) co-ordinate system.
+The co-ordinate system used by the software is [IEC 61217](https://i.imgur.com/k926EqO.png), which is used by most planning systems. Keep in mind this is different from the [DICOM](http://dicom.nema.org/DICOM/2013/output/chtml/part17/figures/PS3.17_FFF.1.2-3.svg) co-ordinate system.
 
 Dwell point co-ordinates and times are extracted from the DICOM plan file, along with the applicator structures from the DICOM structure set file.
 
