@@ -4,6 +4,7 @@ from pydicom.tag import Tag
 from scipy.interpolate import interp1d, interp2d
 from scipy.spatial.distance import euclidean
 import yaml
+import xlrd
 from terminaltables import SingleTable
 
 def tpsComp(rp, rs, directory):
@@ -64,33 +65,34 @@ class Source(object):
         """
         r0 = 1
         theta0 = np.pi/2
+
         self.Sk = rp.SourceSequence[0].ReferenceAirKermaRate
 
-        with open(directory+'/sourcespec.yaml','r') as stream:
-            sourcespec = yaml.load(stream)
+        with open(directory+'/sourceinfo.yaml','r') as stream:
+            sourceinfo = yaml.load(stream)
 
-        source = sourcespec[rp.BrachyTreatmentType]
+        fname = directory+'/'+sourceinfo[rp.BrachyTreatmentType]['filename']
+        wb = xlrd.open_workbook(fname)
+        sh = wb.sheets()[-1]
 
-        if Tag(0x300a, 0x21a) in rp.SourceSequence[0].keys():
-            self.L = rp.SourceSequence[0].ActiveSourceLength/10
-        elif 'length' in source.keys():
-            self.L = source['length']
-        else:
-            raise ValueError('Source length data missing!')
+        self.L = sh.row(9)[2].value
+        self.Delta = sh.row(4)[2].value
 
-        try:
-            self.Delta = source['delta']
+        Fr = [0, 0.2, 0.4, 0.6, 0.8, 1, 1.25, 1.5,
+              1.75, 2, 2.5, 3, 3.5, 4, 5, 6, 8, 10]
+        Ft = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 40, 50, 60, 70, 80,
+              90, 100, 110, 120, 130, 140, 150, 160, 165, 170, 171, 172, 173,
+              174, 175, 176, 177, 178, 179, 180]
+        Fi = np.empty((39, 18))
+        gi = np.empty((14, 2))
 
-            Fi = np.loadtxt(directory+'/'+source['anisotropy']['filename'], delimiter=',')
-            self.Fi = interp2d(Fi[0,:][1:],Fi[:,0][1:],Fi[1:,1:])
+        for row in range(39):
+            if row < 14:
+                gi[row,:] = [r.value for r in sh.row(row+11)[1:3]]
+            Fi[row, :] = [r.value for r in sh.row(row+11)[5:23]]
 
-            if 'filename' in source['radial'].keys():
-                g = np.loadtxt(directory+'/'+source['radial']['filename'], delimiter=',')
-                self.gi = interp1d(g[:,0],g[:,1])
-            else:
-                self.coeff = source['radial']['coeff']
-        except KeyError as e:
-            raise ValueError('Source data not specified correctly!')
+        self.Fi = interp2d(Fr,Ft,Fi)
+        self.gi = interp1d(gi[:,0],gi[:,1])
 
         self.G0 = 2*np.arctan((self.L/2)/r0)/(self.L*r0*np.sin(theta0))
 
@@ -117,7 +119,7 @@ class Source(object):
             if r < 0.15:
                 return self.g(0.15)
             elif r > 10:
-                return self.g(8)*np.exp((r-8)/(10-8)*(np.log(self.g(10))-np.log(self.g(8))))
+                return self.g(8)*np.exp((r-8)/(15-8)*(np.log(self.g(15))-np.log(self.g(8))))
             nth = len(self.coeff)
             out = 0
             for n in range(nth):
