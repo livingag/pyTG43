@@ -22,19 +22,7 @@ For each dwell point, the orientation of the line source is determined by the ve
 
 ## Source specification data
 
-Data specifying the source dose rate constant, anisotropy factor, and radial dose function is required. An example set of data from ESTRO is shown in the `example/` directory. Only one of each source type can be input at any time.
-
-A `.yaml` file is used to specify all required source data. The example shows the two available methods to specifying the radial dose function; with an n-th order polynomial, or with a table of input data to be interpolated.
-
-```
-delta: dose rate constant
-anisotropy:
-  filename: filename for data containing anisotropy data
-radial:
-  coeffs: coefficients of polynomial fit (list)
-  filename: filename for data containing radial data
-```
-An error indicating that source length data is missing means that the source length is not present in the DICOM plan file (the case for some TPSes). Specify the source length (in cm) the `sourcespec.yaml` file using the `length:` attribute.
+All source specification data can be downloaded in spreadsheet form from the [ESTRO website](https://www.estro.org/about/governance-organisation/committees-activities/tg43). Just specify the directory in which you have placed the HDR and/or PDR spreadsheets.
 
 ## Example calculation
 

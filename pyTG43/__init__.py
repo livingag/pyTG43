@@ -1,11 +1,12 @@
+from glob import glob
+
 import numpy as np
 import pydicom
 from pydicom.tag import Tag
 from scipy.interpolate import interp1d, interp2d
 from scipy.spatial.distance import euclidean
-import yaml
-import xlrd
 from terminaltables import SingleTable
+import xlrd
 
 def tpsComp(rp, rs, directory):
     """Calculate and compare dose at reference points with TPS.
@@ -68,10 +69,7 @@ class Source(object):
 
         self.Sk = rp.SourceSequence[0].ReferenceAirKermaRate
 
-        with open(directory+'/sourceinfo.yaml','r') as stream:
-            sourceinfo = yaml.load(stream)
-
-        fname = directory+'/'+sourceinfo[rp.BrachyTreatmentType]['filename']
+        fname = glob(directory+'/*'+rp.BrachyTreatmentType.lower()+'*.xls')[0]
         wb = xlrd.open_workbook(fname)
         sh = wb.sheets()[-1]
 
