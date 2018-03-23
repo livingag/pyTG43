@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name = "pyTG43",
-    version = "0.1.0",
+    version = "0.2.0",
     author = "Alex Livingstone",
     author_email = "livingstone.alex@gmail.com",
     description = "Calculate dose to a point for a brachytherapy plan.",
@@ -22,7 +22,7 @@ setup(
     install_requires = [
         'numpy==1.14.2',
         'pydicom==1.0.2',
-        'PyYAML==3.12',
+        'xlrd==1.1.0',
         'scipy==1.0.0',
         'terminaltables==3.1.0'
     ],
