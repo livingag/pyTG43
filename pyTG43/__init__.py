@@ -76,18 +76,23 @@ class Source(object):
         self.L = sh.row(9)[2].value
         self.Delta = sh.row(4)[2].value
 
-        Fr = [0, 0.2, 0.4, 0.6, 0.8, 1, 1.25, 1.5,
-              1.75, 2, 2.5, 3, 3.5, 4, 5, 6, 8, 10]
-        Ft = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 40, 50, 60, 70, 80,
-              90, 100, 110, 120, 130, 140, 150, 160, 165, 170, 171, 172, 173,
-              174, 175, 176, 177, 178, 179, 180]
-        Fi = np.empty((39, 18))
-        gi = np.empty((14, 2))
+        col = 5
+        while sh.row(10)[col].ctype == 2:
+            col += 1
 
-        for row in range(39):
-            if row < 14:
-                gi[row,:] = [r.value for r in sh.row(row+11)[1:3]]
-            Fi[row, :] = [r.value for r in sh.row(row+11)[5:23]]
+        Fi = np.ones((1, col-5))
+        gi = np.ones((1, 2))
+        Ft = []
+        Fr = [r.value for r in sh.row(10)[5:col]]
+
+        for row in np.arange(11,sh.nrows):
+            if sh.row(row)[1].ctype != 0:
+                gi = np.vstack([gi,np.array([r.value for r in sh.row(row)[1:3]])])
+            Fi = np.vstack([Fi,np.array([r.value for r in sh.row(row)[5:col]])])
+            Ft.append(sh.row(row)[4].value)
+
+        Fi = Fi[1:,:]
+        gi = gi[1:,:]
 
         self.Fi = interp2d(Fr,Ft,Fi)
         self.gi = interp1d(gi[:,0],gi[:,1])
@@ -111,18 +116,12 @@ class Source(object):
         Args:
             r: distance (cm).
         """
-        if hasattr(self,'gi'):
-            return self.gi(r)
+        if r < 0.15:
+            return self.gi(0.15)
+        elif r > 10:
+            return self.gi(8)*np.exp((r-8)/(10-8)*(np.log(self.gi(10))-np.log(self.gi(8))))
         else:
-            if r < 0.15:
-                return self.g(0.15)
-            elif r > 10:
-                return self.g(8)*np.exp((r-8)/(15-8)*(np.log(self.g(15))-np.log(self.g(8))))
-            nth = len(self.coeff)
-            out = 0
-            for n in range(nth):
-                out += self.coeff[n]*r**n
-            return out
+            return self.gi(r)
 
 
 class Dwell(object):
@@ -217,7 +216,7 @@ class DosePoint(object):
         if Tag(0x300a, 0x26) in rp[0x300a, 0x10][0].keys():
             for r in rp[0x300a, 0x10]:
                 if self.ref == r[0x300a, 0x12].value:
-                    tpsdose += r[0x300a, 0x26]
+                    tpsdose += r[0x300a, 0x26].value
         else:
             for cath in rp[0x300a, 0x230][0][0x300a, 0x280]:
                 dwells = cath[0x300a, 0x2d0]
@@ -260,7 +259,6 @@ class DosePoint(object):
 
         self.dose = dose
 
-
 class Plan(object):
     """Plan parameters.
 
@@ -277,17 +275,22 @@ class Plan(object):
             rs: pydicom object of RS file.
         """
         self.rp = rp
-        self.get_ROIs(rs)
+        self.get_ROIs(rs, rp)
         self.get_dwells(source, rp)
-    def get_ROIs(self, rs):
+    def get_ROIs(self, rs, rp):
         """Get all structures in plan.
 
         Args:
             rs: pydicom object of RS file.
         """
         self.ROIs = []
-        for struct in rs.StructureSetROISequence:
-            self.ROIs.append(ROI(struct.ROINumber, struct.ROIName, rs))
+        if rp.Manufacturer == 'Nucletron':
+            for roi in rp[0x300f, 0x1000][0][0x3006, 0x39]:
+                if len(roi.ContourSequence) == 1:
+                    self.ROIs.append(ROI(roi[0x3006,0x84].value,None,rs,rp))
+        else:
+            for struct in rs.StructureSetROISequence:
+                self.ROIs.append(ROI(struct.ROINumber, struct.ROIName, rs, rp))
     def get_dwells(self, source, rp):
         """Get all dwell points in plan.
 
@@ -295,19 +298,25 @@ class Plan(object):
             source: Source object.
             rp: pydicom object of RP file.
         """
-        time = 0
+        c = 0
         self.dwells = []
         for cath in rp[0x300a, 0x230][0][0x300a, 0x280]:
             dwell_pts = cath[0x300a, 0x2d0]
+            weight = cath[0x300a, 0x2c8].value
+            total = cath[0x300a, 0x286].value
 
             for roi in self.ROIs:
                 if cath.SourceApplicatorID == roi.name:
                     app = roi
+                elif rp.Manufacturer == 'Nucletron' and \
+                     cath[0x300b,0x1000].value == roi.number:
+                    app = roi
 
             for d in dwell_pts:
                 x, z, y = d[0x300a, 0x2d4].value
-                t = d[0x300a, 0x2d6].value - time
-                time = d[0x300a, 0x2d6].value
+                w = d[0x300a, 0x2d6].value - c
+                t = w/weight * total
+                c = d[0x300a, 0x2d6].value
                 self.dwells.append(Dwell([x/10, y/10, z/10], t, source.L, app))
 
 
@@ -319,29 +328,40 @@ class ROI(object):
         name: structure name.
         coords: array of (x,y,z) co-ordinates defining the structure (cm).
     """
-    def __init__(self, number, name, rs):
+    def __init__(self, number, name, rs, rp):
         """
         Args:
             number: DICOM reference number.
             name: structure name.
             rs: pydicom object of RS file.
+            rp: pydicom object of RP file.
         """
         self.number = number
         self.name = name
         self.coords = np.empty((0,3))
-        self.get_coords(rs)
+        self.get_coords(rs,rp)
 
-    def get_coords(self, rs):
+    def get_coords(self, rs, rp):
         """Get co-ordinates for this structure from the RS file.
 
         Args:
-            rs: pydicom object of RS file."""
-        for roi in rs.ROIContourSequence:
-            if roi[0x3006,0x84].value == self.number and Tag(0x3006, 0x40) in roi.keys():
-                for sli in roi.ContourSequence:
+            rs: pydicom object of RS file.
+            rp: pydicom object of RP file.
+        """
+
+        if rs.Manufacturer == 'Nucletron':
+            for roi in rp[0x300f, 0x1000][0][0x3006, 0x39]:
+                if len(roi.ContourSequence) == 1 and roi[0x3006, 0x84].value == self.number:
+                    sli = roi.ContourSequence[0]
                     self.coords = np.append(self.coords,np.array(sli.ContourData).reshape((-1, 3)),axis=0)
-                self.coords /= 10
-                self.coords = self.coords[:, [0, 2, 1]]
+        else:
+            for roi in rs.ROIContourSequence:
+                if roi[0x3006,0x84].value == self.number and Tag(0x3006, 0x40) in roi.keys():
+                    for sli in roi.ContourSequence:
+                        self.coords = np.append(self.coords,np.array(sli.ContourData).reshape((-1, 3)),axis=0)
+
+        self.coords /= 10
+        self.coords = self.coords[:, [0, 2, 1]]
 
     def __repr__(self):
         return self.name
