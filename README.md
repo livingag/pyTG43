@@ -29,7 +29,7 @@ All source specification data can be downloaded in spreadsheet form from the [ES
 Examples are proivded for both Eclipse and Oncentra treatment planning sytems, and can be run using `python examples.py`
 
 ```bash
-$ python example.py
+$ python examples.py
 ----------------------------------------
  Eclipse (HDR)
 ----------------------------------------
