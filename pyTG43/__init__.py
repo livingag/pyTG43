@@ -6,6 +6,7 @@ from pydicom.tag import Tag
 from scipy.interpolate import interp1d, interp2d
 from scipy.spatial.distance import euclidean
 from terminaltables import SingleTable
+from matplotlib.path import Path
 import xlrd
 
 def tpsComp(rp, rs, directory):
@@ -183,7 +184,7 @@ class DosePoint(object):
         dose: calculated dose (cGy).
         tpsdose: TPS dose obtained from DICOM file (cGy).
     """
-    def __init__(self, coords, source, plan, name='', ref='', directory='.'):
+    def __init__(self, coords, source, plan, name='', ref=''):
         """
         Args:
             coords: list of dose point coordinates
@@ -191,7 +192,6 @@ class DosePoint(object):
             rs: pydicom object of RS file.
             name: name of dose point.
             ref: DICOM dose point reference number.
-            directory: directory containing source data.
         """
         self.x, self.y, self.z = coords
         self.coords = np.array(coords)
@@ -288,9 +288,9 @@ class Plan(object):
             for roi in rp[0x300f, 0x1000][0][0x3006, 0x39]:
                 if len(roi.ContourSequence) == 1:
                     self.ROIs.append(ROI(roi[0x3006,0x84].value,None,rs,rp))
-        else:
-            for struct in rs.StructureSetROISequence:
-                self.ROIs.append(ROI(struct.ROINumber, struct.ROIName, rs, rp))
+
+        for struct in rs.StructureSetROISequence:
+            self.ROIs.append(ROI(struct.ROINumber, struct.ROIName, rs, rp))
     def get_dwells(self, source, rp):
         """Get all dwell points in plan.
 
@@ -327,6 +327,7 @@ class ROI(object):
         number: DICOM reference number.
         name: structure name.
         coords: array of (x,y,z) co-ordinates defining the structure (cm).
+        dvh: cumulative DVH for this structure.
     """
     def __init__(self, number, name, rs, rp):
         """
@@ -349,7 +350,7 @@ class ROI(object):
             rp: pydicom object of RP file.
         """
 
-        if rs.Manufacturer == 'Nucletron':
+        if rs.Manufacturer == 'Nucletron' and self.name == None:
             for roi in rp[0x300f, 0x1000][0][0x3006, 0x39]:
                 if len(roi.ContourSequence) == 1 and roi[0x3006, 0x84].value == self.number:
                     sli = roi.ContourSequence[0]
@@ -363,5 +364,37 @@ class ROI(object):
         self.coords /= 10
         self.coords = self.coords[:, [0, 2, 1]]
 
+    def get_DVH(self,source,plan,grid=0.2):
+        """Calculate cumulative DVH for this structure.
+
+        Args:
+            source: source object.
+            plan: plan object.
+            grid: grid size for calculation (default 2mm)
+        """
+        dvh = []
+        if len(self.coords) > 50:
+            slices = list(set(self.coords[:,1]))
+            for sli in slices:
+                xy = self.coords[np.where(self.coords[:,1] == sli)][:,(0,2)]
+                minx = xy[:,0].min()
+                maxx = xy[:,0].max()
+                miny = xy[:,1].min()
+                maxy = xy[:,1].max()
+                calcgrid = [[x, y] for y in np.arange(miny,maxy,grid) for x in np.arange(minx,maxx,grid)]
+                cPath = Path(xy)
+                inPath = cPath.contains_points(calcgrid)
+                calcpts = [calcgrid[i] for i in np.where(inPath)[0]]
+                for pt in calcpts:
+                    pt = [pt[0], sli, pt[1]]
+                    dvh.append(DosePoint(pt,source,plan).dose)
+
+            n, bins = np.histogram(dvh,100,range=(0,max(dvh)))
+            dvh = np.cumsum(n[::-1])[::-1]
+            dvh = dvh / dvh.max() * 100
+            self.dvh = np.column_stack((bins[:-1],dvh))
     def __repr__(self):
-        return self.name
+        if self.name != None:
+            return self.name
+        else:
+            return 'Oncentra Applicator'
