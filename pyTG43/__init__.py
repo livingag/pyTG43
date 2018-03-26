@@ -315,7 +315,10 @@ class Plan(object):
             for d in dwell_pts:
                 x, z, y = d[0x300a, 0x2d4].value
                 w = d[0x300a, 0x2d6].value - c
-                t = w/weight * total
+                if weight == 0:
+                    t = 0
+                else:
+                    t = w/weight * total
                 c = d[0x300a, 0x2d6].value
                 self.dwells.append(Dwell([x/10, y/10, z/10], t, source.L, app))
 
