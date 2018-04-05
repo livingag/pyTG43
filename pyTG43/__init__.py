@@ -277,6 +277,10 @@ class Plan(object):
         self.rp = rp
         self.get_ROIs(rs, rp)
         self.get_dwells(source, rp)
+        self.rx = rp.FractionGroupSequence[0][0x300c, 0xa][0][0x300a, 0xa4].value
+
+        if rp.BrachyTreatmentType == 'PDR':
+            self.rx *= rp[0x300a, 0x230][0][0x300a, 0x280][0][0x300a, 0x28a].value
     def get_ROIs(self, rs, rp):
         """Get all structures in plan.
 
@@ -377,7 +381,8 @@ class ROI(object):
         """
         dvh = []
         if len(self.coords) > 50:
-            slices = list(set(self.coords[:,1]))
+            slices = sorted(list(set(self.coords[:,1])))
+            sthick = slices[1] - slices[0]
             for sli in slices:
                 xy = self.coords[np.where(self.coords[:,1] == sli)][:,(0,2)]
                 minx = xy[:,0].min()
@@ -392,7 +397,8 @@ class ROI(object):
                     pt = [pt[0], sli, pt[1]]
                     dvh.append(DosePoint(pt,source,plan).dose)
 
-            n, bins = np.histogram(dvh,100,range=(0,max(dvh)))
+            self.volume = len(dvh) * (grid * grid * sthick)
+            n, bins = np.histogram(dvh,100,range=(0,plan.rx*11))
             dvh = np.cumsum(n[::-1])[::-1]
             dvh = dvh / dvh.max() * 100
             self.dvh = np.column_stack((bins[:-1],dvh))
