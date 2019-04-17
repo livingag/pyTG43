@@ -1,5 +1,8 @@
-__pycache__/*
-.vscode/*
+__pycache__/
+.vscode/
 *.pyc
-.ipynb_checkpoints/*
+.ipynb_checkpoints/
+*/.ipynb_checkpoints
+*/__pycache__
 *.ipynb
+QA

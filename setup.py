@@ -2,10 +2,10 @@ from setuptools import setup
 
 setup(
     name = "pyTG43",
-    version = "0.2.0",
+    version = "0.3.0",
     author = "Alex Livingstone",
     author_email = "livingstone.alex@gmail.com",
-    description = "Calculate dose to a point for a brachytherapy plan.",
+    description = "Calculate dose to a point or DVHs for a brachytherapy plan.",
     long_description = """
     Calculate dose to a point using provided treatment plan information in the form of DICOM files.
 
