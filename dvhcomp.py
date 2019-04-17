@@ -11,7 +11,7 @@ rd = pydicom.dcmread('examples/PDR/RD.PDR.dcm')
 source = Source(rp, 'examples/PDR/')
 plan = Plan(source, rp, rs, rd)
 
-calcDVHs(source,plan,plan.rx*10)
+calcDVHs(source,plan,plan.rx*10,['ctv','bladder','rectum'])
 
 plt.rcParams['figure.figsize'] = [10, 7]
 cmap = plt.get_cmap('tab20').colors

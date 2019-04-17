@@ -52,13 +52,14 @@ def pcalc(pt):
     return DosePoint(pt,source,plan).dose
 
 
-def calcDVHs(sourcei, plani, maxd):
+def calcDVHs(sourcei, plani, maxd, names):
     """Calculate cumulative DVHs for structures.
 
     Atributes:
         sourcei: pyTG43.Source object.
         plani: pyTG43.Plan object.
         maxd: max value for DVH calculation.
+        names: list of names of structures to calculate DVH for.
     """
     global source
     global plan
@@ -68,7 +69,7 @@ def calcDVHs(sourcei, plani, maxd):
 
     pool = Pool()
     for roi in plan.ROIs:
-        if roi.dvhpts:
+        if roi.dvhpts and roi.name.lower() in [x.lower() for x in names]:
             dvh = pool.map(pcalc, roi.dvhpts)
             roi.min = min(dvh)
             roi.max = max(dvh)
@@ -470,7 +471,7 @@ class ROI(object):
             grid: grid size for calculation (default 2.5mm)
         """
         self.dvhpts = []
-        if self.name.lower() in ['hr-ctv','ctv','bladder','rectum','urethra']:
+        if self.name.lower() not in ['body','external']:
             if len(self.coords) > 50:
                 slices = sorted(list(set(self.coords[:,1])))
                 sthick = slices[1] - slices[0]
