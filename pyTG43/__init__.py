@@ -13,8 +13,8 @@ def tpsComp(rp, rs, directory):
     """Calculate and compare dose at reference points with TPS.
 
     Args:
-        rp: pydicom object of RP file.
-        rs: pydicom object of RS file.
+        rp: pydicom object of plan (RP) file.
+        rs: pydicom object of structure (RS) file.
         directory: directory containing source data.
 
     Returns:
@@ -60,6 +60,9 @@ def calcDVHs(sourcei, plani, maxd, names):
         plani: pyTG43.Plan object.
         maxd: max value for DVH calculation.
         names: list of names of structures to calculate DVH for.
+
+    Returns:
+        roi.dvh: array of cumulative DVH for each ROI in names.
     """
     global source
     global plan
@@ -96,7 +99,7 @@ class Source(object):
     def __init__(self, rp, directory):
         """
         Args:
-            rp: pydicom object of RP file.
+            rp: pydicom object of plan (RP) file.
             directory: directory containing source data.
         """
         r0 = 1
@@ -167,6 +170,7 @@ class Dwell(object):
         middle: (x,y,z) coordinates of middle of source (cm).
         t: dwell time (s).
         ends: list containing coordinates of each endd of the source (cm).
+        rotation: dwell position orientation angles for egs_brachy.
     """
     def __init__(self, coords, t, L, app):
         """
@@ -233,8 +237,8 @@ class DosePoint(object):
         """
         Args:
             coords: list of dose point coordinates
-            rp: pydicom object of RP file.
-            rs: pydicom object of RS file.
+            rp: pydicom object of plan (RP) file.
+            rs: pydicom object of structure (RS) file.
             name: name of dose point.
             ref: DICOM dose point reference number.
         """
@@ -254,7 +258,7 @@ class DosePoint(object):
         """Get dose calculated by TPS for this point.
 
         Args:
-            rp: pydicom object of RP file.
+            rp: pydicom object of plan (RP) file.
         """
         tpsdose = 0
 
@@ -308,7 +312,7 @@ class Plan(object):
     """Plan parameters.
 
     Attributes:
-        rp: pydicom object of RP file.
+        rp: pydicom object of plan (RP) file.
         ROIs: list of ROI objects in plan.
         dwells: list of Dwell objects in plan.
     """
@@ -316,8 +320,8 @@ class Plan(object):
         """
         Args:
             source: Source object.
-            rp: pydicom object of RP file.
-            rs: pydicom object of RS file.
+            rp: pydicom object of plan (RP) file.
+            rs: pydicom object of structure (RS) file.
         """
         self.rp = rp
         if rp.BrachyTreatmentType == 'PDR':
@@ -333,7 +337,7 @@ class Plan(object):
         """Get all structures in plan.
 
         Args:
-            rs: pydicom object of RS file.
+            rs: pydicom object of structure (RS) file.
         """
         self.ROIs = []
         if rp.Manufacturer == 'Nucletron':
@@ -348,7 +352,7 @@ class Plan(object):
 
         Args:
             source: Source object.
-            rp: pydicom object of RP file.
+            rp: pydicom object of plan (RP) file.
         """
         c = 0
         self.dwells = []
@@ -382,15 +386,17 @@ class ROI(object):
         number: DICOM reference number.
         name: structure name.
         coords: array of (x,y,z) co-ordinates defining the structure (cm).
+        tpsdvh: TPS-calculated cumulative DVH for this structure.
         dvh: cumulative DVH for this structure.
+        dvhpts: co-ordinates for DVH calculation of this structure.
     """
     def __init__(self, number, name, rs, rp, rd=None):
         """
         Args:
             number: DICOM reference number.
             name: structure name.
-            rs: pydicom object of RS file.
-            rp: pydicom object of RP file.
+            rs: pydicom object of structure (RS) file.
+            rp: pydicom object of plan (RP) file.
         """
         self.number = number
         self.name = name
@@ -405,8 +411,8 @@ class ROI(object):
         """Get co-ordinates for this structure from the RS file.
 
         Args:
-            rs: pydicom object of RS file.
-            rp: pydicom object of RP file.
+            rs: pydicom object of structure (RS) file.
+            rp: pydicom object of plan (RP) file.
         """
 
         if rs.Manufacturer == 'Nucletron' and self.name == None:
@@ -424,6 +430,13 @@ class ROI(object):
         self.coords = self.coords[:, [0, 2, 1]]
 
     def get_TPS_DVH(self,rp,rs,rd):
+        """Compute DVH for TPS-calculated dose distribution.
+
+        Args:
+            rp = pydicom object of plan (RP) file.
+            rs = pydicom object of structure (RS) file.
+            rd = pydicom object of dose (RD) file.
+        """
         rx = rp.FractionGroupSequence[0][0x300c, 0xa][0][0x300a, 0xa4].value
         xcoords = (rd.ImagePositionPatient[0] + np.arange(0, rd.Columns*rd.PixelSpacing[0], rd.PixelSpacing[0]))
         ycoords = (rd.ImagePositionPatient[1] + np.arange(0, rd.Rows*rd.PixelSpacing[1], rd.PixelSpacing[1]))
@@ -464,10 +477,10 @@ class ROI(object):
 
     def get_DVH_pts(self,grid=0.25):
         """Calculate DVH calculation co-ordinates for this structure.
+        Generates a grid of points at the specified resolution within
+        the structure.
 
         Args:
-            source: source object.
-            plan: plan object.
             grid: grid size for calculation (default 2.5mm)
         """
         self.dvhpts = []
