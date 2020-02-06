@@ -22,7 +22,7 @@ For each dwell point, the orientation of the line source is determined by the ve
 
 ## Source specification data
 
-All source specification data can be downloaded in spreadsheet form from the [ESTRO website](https://www.estro.org/about/governance-organisation/committees-activities/tg43). Just specify the directory in which you have placed the HDR and/or PDR spreadsheets, and pyTG43 will extract the relevant data.
+All source specification data can be downloaded in spreadsheet form from the [ESTRO website](https://www.estro.org/About/ESTRO-Organisation-Structure/Committees/GEC-ESTRO-Committee/GEC-ESTRO-BRAPHYQS). Just specify the directory in which you have placed the HDR and/or PDR spreadsheets, and pyTG43 will extract the relevant data.
 
 ## Example calculations
 
