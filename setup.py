@@ -20,12 +20,12 @@ setup(
     packages = ["pyTG43"],
     python_requires = '>=3.5.0',
     install_requires = [
-        'numpy==1.14.2',
-        'pydicom==1.0.2',
-        'xlrd==1.1.0',
-        'scipy==1.0.0',
-        'terminaltables==3.1.0',
-        'matplotlib==2.2.0+601.g197bb59'
+        'numpy>=1.14.2',
+        'pydicom>=1.0.2',
+        'xlrd>=1.1.0',
+        'scipy>=1.0.0',
+        'terminaltables>=3.1.0',
+        'matplotlib>=2.2.0+601.g197bb59'
     ],
     license = '',
     classifiers = [],
