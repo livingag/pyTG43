@@ -276,6 +276,7 @@ class DosePoint(object):
                             tpsdose += r[0x300a, 0x10c].value
 
             tpsdose *= rp.FractionGroupSequence[0][0x300c, 0xa][0][0x300a, 0xa4].value
+            tpsdose *= rp.FractionGroupSequence[0][0x300a,0x78].value
 
             if rp.BrachyTreatmentType == 'PDR':
                 tpsdose *= rp[0x300a, 0x230][0][0x300a, 0x280][0][0x300a, 0x28a].value
@@ -362,7 +363,7 @@ class Plan(object):
             total = cath[0x300a, 0x286].value*self.frac
 
             for roi in self.ROIs:
-                if cath.SourceApplicatorID == roi.name:
+                if cath.ReferencedROINumber == roi.number:
                     app = roi
                 elif rp.Manufacturer == 'Nucletron' and \
                      cath[0x300b,0x1000].value == roi.number:
@@ -487,7 +488,6 @@ class ROI(object):
         if self.name.lower() not in ['body','external']:
             if len(self.coords) > 50:
                 slices = sorted(list(set(self.coords[:,1])))
-                sthick = slices[1] - slices[0]
                 for sli in slices:
                     xy = self.coords[np.where(self.coords[:,1] == sli)][:,(0,2)]
                     minx = xy[:,0].min()-0.5
