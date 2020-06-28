@@ -5,7 +5,7 @@ import pydicom
 from pydicom.tag import Tag
 from terminaltables import SingleTable
 from matplotlib.path import Path
-import xlrd, math
+import xlrd, math, os
 from multiprocessing import Pool
 import itertools
 
@@ -28,7 +28,7 @@ def tpsComp(rp, rs, directory):
 
     for p in rp[0x300a, 0x10]:
         if Tag(0x300a,0x18) in p.keys():
-            x, z, y = p[0x300a, 0x18].value
+            x, y, z = p[0x300a, 0x18].value
             name = p[0x300a, 0x16].value
             ref = p[0x300a, 0x12].value
             points.append(DosePoint([x/10, y/10, z/10], source, plan, name, ref))
@@ -70,10 +70,14 @@ def calcDVHs(sourcei, plani, maxd, names):
     source = sourcei
     plan = plani
 
-    pool = Pool()
+    if os.name != 'nt':
+        pool = Pool()
     for roi in plan.ROIs:
         if roi.dvhpts and roi.name.lower() in [x.lower() for x in names]:
-            dvh = pool.map(pcalc, roi.dvhpts)
+            if os.name == 'nt':
+                dvh = [DosePoint(pt,source,plan).dose for pt in roi.dvhpts]
+            else:
+                dvh = pool.map(pcalc, roi.dvhpts)
             roi.min = min(dvh)
             roi.max = max(dvh)
             roi.mean = np.array(dvh).mean()
@@ -82,8 +86,9 @@ def calcDVHs(sourcei, plani, maxd, names):
             dvh = dvh / dvh.max() * 100
             roi.dvh = np.column_stack((bins[:-1],dvh))
 
-    pool.close()
-    pool.join()
+    if os.name != 'nt':
+        pool.close()
+        pool.join()
 
 class Source(object):
     """Source parameters object.
@@ -148,6 +153,7 @@ class Source(object):
             return self.Fi(10,theta)
         else:
             return self.Fi(r,theta)
+
     def g(self, r):
         """Radial dose function.
 
@@ -370,7 +376,7 @@ class Plan(object):
                     app = roi
 
             for d in dwell_pts:
-                x, z, y = d[0x300a, 0x2d4].value
+                x, y, z = d[0x300a, 0x2d4].value
                 w = d[0x300a, 0x2d6].value - c
                 if weight == 0:
                     t = 0
@@ -428,7 +434,6 @@ class ROI(object):
                         self.coords = np.append(self.coords,np.array(sli.ContourData).reshape((-1, 3)),axis=0)
 
         self.coords /= 10
-        self.coords = self.coords[:, [0, 2, 1]]
 
     def get_TPS_DVH(self,rp,rs,rd):
         """Compute DVH for TPS-calculated dose distribution.
@@ -470,11 +475,11 @@ class ROI(object):
                     self.tpsmin = dvh.min
                     self.tpsmax = dvh.max
                     self.tpsmean = dvh.mean
-
-                    n, bins = np.histogram(dvh,100,range=(0,rx*10))
-                    dvh = np.cumsum(n[::-1])[::-1]
-                    dvh = dvh / dvh.max() * 100
-                    self.tpsdvh = np.column_stack((bins[:-1],dvh))
+                    if len(dvh) > 0:
+                        n, bins = np.histogram(dvh,100,range=(0,rx*10))
+                        dvh = np.cumsum(n[::-1])[::-1]
+                        dvh = dvh / dvh.max() * 100
+                        self.tpsdvh = np.column_stack((bins[:-1],dvh))
 
     def get_DVH_pts(self,grid=0.25):
         """Calculate DVH calculation co-ordinates for this structure.
@@ -487,9 +492,9 @@ class ROI(object):
         self.dvhpts = []
         if self.name.lower() not in ['body','external']:
             if len(self.coords) > 50:
-                slices = sorted(list(set(self.coords[:,1])))
+                slices = sorted(list(set(self.coords[:,2])))
                 for sli in slices:
-                    xy = self.coords[np.where(self.coords[:,1] == sli)][:,(0,2)]
+                    xy = self.coords[np.where(self.coords[:,2] == sli)][:,(0,1)]
                     minx = xy[:,0].min()-0.5
                     maxx = xy[:,0].max()+0.5
                     miny = xy[:,1].min()-0.5
@@ -498,7 +503,7 @@ class ROI(object):
                     cPath = Path(xy)
                     inPath = cPath.contains_points(calcgrid)
                     calcpts = [calcgrid[i] for i in np.where(inPath)[0]]
-                    self.dvhpts.extend([[pt[0], sli, pt[1]] for pt in calcpts])
+                    self.dvhpts.extend([[pt[0], pt[1], sli] for pt in calcpts])
 
     def __repr__(self):
         if self.name != None:
