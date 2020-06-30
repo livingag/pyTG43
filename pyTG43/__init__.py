@@ -1,5 +1,4 @@
 from glob import glob
-
 import numpy as np
 import pydicom
 from pydicom.tag import Tag
@@ -73,14 +72,11 @@ def calcDVHs(sourcei, plani, maxd, names):
     if os.name != 'nt':
         pool = Pool()
     for roi in plan.ROIs:
-        if roi.dvhpts and roi.name.lower() in [x.lower() for x in names]:
+        if roi.name.lower() in [x.lower() for x in names]:
             if os.name == 'nt':
                 dvh = [DosePoint(pt,source,plan).dose for pt in roi.dvhpts]
             else:
                 dvh = pool.map(pcalc, roi.dvhpts)
-            roi.min = min(dvh)
-            roi.max = max(dvh)
-            roi.mean = np.array(dvh).mean()
             n, bins = np.histogram(dvh,100,range=(0,maxd))
             dvh = np.cumsum(n[::-1])[::-1]
             dvh = dvh / dvh.max() * 100
@@ -200,9 +196,9 @@ class Dwell(object):
             L: source length (cm).
         """
         smallest = +np.inf
-        for i, p in enumerate(app.coords):
+        for i, p in enumerate(app.oldcoords(app.coords)/10):
             if i < len(app.coords)-1:
-                q = app.coords[i+1]
+                q = app.oldcoords(app.coords)[i+1]/10
                 online = (np.round(euclidzip(p,self.middle) + euclidzip(q,self.middle),4))-np.round(euclidzip(p,q),4)
                 if online < smallest:
                     smallest = (np.round(euclidzip(p,self.middle) + euclidzip(q,self.middle),4))-np.round(euclidzip(p,q),4)
@@ -354,6 +350,7 @@ class Plan(object):
 
         for struct in rs.StructureSetROISequence:
             self.ROIs.append(ROI(struct.ROINumber, struct.ROIName, rs, rp, rd))
+
     def get_dwells(self, source, rp):
         """Get all dwell points in plan.
 
@@ -408,11 +405,38 @@ class ROI(object):
         self.number = number
         self.name = name
         self.coords = np.empty((0,3))
+        self.get_transform(rd)
         self.get_coords(rs,rp)
-        if self.name:
-            self.get_DVH_pts()
-            if rd:
-                self.get_TPS_DVH(rp,rs,rd)
+
+    def get_transform(self, rd):
+        """Get transformation function to transform rotated orientation to default.
+
+        Args:
+            rd: pydicom object of dose (RD) file.
+        """
+        if rd:
+            nnx = np.array(rd.ImageOrientationPatient[:3])
+            nny = -np.array(rd.ImageOrientationPatient[3:])
+            nnz = -np.cross(nnx,nny)
+        else:
+            nnx, nny, nnz = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1], dtype=float).reshape(3, -1)
+
+        nox, noy, noz = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1], dtype=float).reshape(3, -1)
+
+        top = [np.dot(nnx, n) for n in [nox, noy, noz]]
+        mid = [np.dot(nny, n) for n in [nox, noy, noz]]
+        bot = [np.dot(nnz, n) for n in [nox, noy, noz]]
+        A = np.vstack((top,mid,bot))
+        Ai = np.linalg.inv(A)
+
+        def newcoords(coords):
+            return np.vstack([np.dot(A,pt) for pt in coords])
+
+        def oldcoords(coords):
+            return np.vstack([np.dot(Ai,pt) for pt in coords])
+
+        self.newcoords = newcoords
+        self.oldcoords = oldcoords
 
     def get_coords(self, rs, rp):
         """Get co-ordinates for this structure from the RS file.
@@ -432,8 +456,8 @@ class ROI(object):
                 if roi[0x3006,0x84].value == self.number and Tag(0x3006, 0x40) in roi.keys():
                     for sli in roi.ContourSequence:
                         self.coords = np.append(self.coords,np.array(sli.ContourData).reshape((-1, 3)),axis=0)
-
-        self.coords /= 10
+        if len(self.coords) > 0:
+            self.coords = np.round(self.newcoords(self.coords),1)
 
     def get_TPS_DVH(self,rp,rs,rd):
         """Compute DVH for TPS-calculated dose distribution.
@@ -444,11 +468,10 @@ class ROI(object):
             rd = pydicom object of dose (RD) file.
         """
         rx = rp.FractionGroupSequence[0][0x300c, 0xa][0][0x300a, 0xa4].value
-        xcoords = (rd.ImagePositionPatient[0] + np.arange(0, rd.Columns*rd.PixelSpacing[0], rd.PixelSpacing[0]))
-        ycoords = (rd.ImagePositionPatient[1] + np.arange(0, rd.Rows*rd.PixelSpacing[1], rd.PixelSpacing[1]))
-        zcoords = np.array(rd.GridFrameOffsetVector) + rd.ImagePositionPatient[2]
-
-        coords = (zcoords[:], ycoords, xcoords)
+        ix, iy, iz = self.newcoords([rd.ImagePositionPatient])[0]
+        xcoords = (ix + np.arange(0, rd.Columns*rd.PixelSpacing[0], rd.PixelSpacing[0]))
+        ycoords = (iy - np.arange(0, rd.Rows*rd.PixelSpacing[1], rd.PixelSpacing[1]))
+        zcoords = np.round(iz + np.array(rd.GridFrameOffsetVector),2)
 
         dose_ref = (rd.pixel_array*rd.DoseGridScaling)[:,:,:]
 
@@ -462,11 +485,11 @@ class ROI(object):
                 if "ContourSequence" in contour:
                     dvh = []
                     for sli in contour.ContourSequence:
-                        index = float(sli.ContourData[2])
+                        contourCoords = self.newcoords(np.array(sli.ContourData).reshape((-1, 3)))
+                        index = np.round(np.mean(contourCoords[:,2]),2)
                         try:
                             doseslice = dose_ref[list(zcoords).index(index),:,:]
-                            contourCoords = np.array(sli.ContourData).reshape((-1, 3))[:, :2]
-                            cPath = Path(contourCoords)
+                            cPath = Path(contourCoords[:, :2])
                             inPath = cPath.contains_points(coords).reshape((dose_ref.shape[1], dose_ref.shape[2]))
                             dvh += list(doseslice[inPath==True])
                         except:
@@ -481,7 +504,7 @@ class ROI(object):
                         dvh = dvh / dvh.max() * 100
                         self.tpsdvh = np.column_stack((bins[:-1],dvh))
 
-    def get_DVH_pts(self,grid=0.25):
+    def get_DVH_pts(self,grid=2.5):
         """Calculate DVH calculation co-ordinates for this structure.
         Generates a grid of points at the specified resolution within
         the structure.
@@ -490,20 +513,19 @@ class ROI(object):
             grid: grid size for calculation (default 2.5mm)
         """
         self.dvhpts = []
-        if self.name.lower() not in ['body','external']:
-            if len(self.coords) > 50:
-                slices = sorted(list(set(self.coords[:,2])))
-                for sli in slices:
-                    xy = self.coords[np.where(self.coords[:,2] == sli)][:,(0,1)]
-                    minx = xy[:,0].min()-0.5
-                    maxx = xy[:,0].max()+0.5
-                    miny = xy[:,1].min()-0.5
-                    maxy = xy[:,1].max()+0.5
-                    calcgrid = [[x, y] for y in np.arange(miny,maxy,grid) for x in np.arange(minx,maxx,grid)]
-                    cPath = Path(xy)
-                    inPath = cPath.contains_points(calcgrid)
-                    calcpts = [calcgrid[i] for i in np.where(inPath)[0]]
-                    self.dvhpts.extend([[pt[0], pt[1], sli] for pt in calcpts])
+        coords = self.coords
+        slices = sorted(list(set(coords[:,2])))
+        for sli in slices:
+            xy = coords[np.where(coords[:,2] == sli)][:,(0,1)]
+            minx = xy[:,0].min()-0.5
+            maxx = xy[:,0].max()+0.5
+            miny = xy[:,1].min()-0.5
+            maxy = xy[:,1].max()+0.5
+            calcgrid = [[x, y] for y in np.arange(miny,maxy,grid) for x in np.arange(minx,maxx,grid)]
+            cPath = Path(xy)
+            inPath = cPath.contains_points(calcgrid)
+            calcpts = [calcgrid[i] for i in np.where(inPath)[0]]
+            self.dvhpts.extend([list(self.oldcoords([[pt[0], pt[1], sli]])[0,[0,1,2]]/10) for pt in calcpts])
 
     def __repr__(self):
         if self.name != None:

@@ -11,6 +11,11 @@ rd = pydicom.dcmread('examples/PDR/RD.PDR.dcm')
 source = Source(rp, 'examples/PDR/')
 plan = Plan(source, rp, rs, rd)
 
+for roi in plan.ROIs:
+    if roi.name in ['ctv','bladder','rectum']:
+        roi.get_DVH_pts()
+        roi.get_TPS_DVH(rp,rs,rd)
+
 calcDVHs(source,plan,plan.rx*10,['ctv','bladder','rectum'])
 
 plt.rcParams['figure.figsize'] = [10, 7]
