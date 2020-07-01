@@ -25,7 +25,8 @@ setup(
         'xlrd>=1.1.0',
         'scipy>=1.0.0',
         'terminaltables>=3.1.0',
-        'matplotlib>=2.2.0+601.g197bb59'
+        'matplotlib>=2.2.0+601.g197bb59',
+        'bokeh>=1.4.0'
     ],
     license = '',
     classifiers = [],

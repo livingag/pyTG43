@@ -20,6 +20,10 @@ Dwell point co-ordinates and times are extracted from the DICOM plan file, along
 
 For each dwell point, the orientation of the line source is determined by the vector of the two nearest points of the applicator structure for that dwell point. The relevant angles and distances required by the TG-43 formalism are then easily determined through vector calculus.
 
+### Rotated data sets
+
+For DVH calculation of rotated co-ordinate systems (e.g. when planning on rotated/manipulated CT datasets), the co-ordinates of the structures are transformed into an intermediate co-ordinate system so that dose data can be easily collected from the calculation grid.
+
 ## Source specification data
 
 All source specification data can be downloaded in spreadsheet form from the [ESTRO website](https://www.estro.org/About/ESTRO-Organisation-Structure/Committees/GEC-ESTRO-Committee/GEC-ESTRO-BRAPHYQS). Just specify the directory in which you have placed the HDR and/or PDR spreadsheets, and pyTG43 will extract the relevant data.
@@ -35,21 +39,21 @@ $ python examples.py
 ----------------------------------------
  Eclipse (HDR)
 ----------------------------------------
-┌───────────┬───────┬──────┬───────┬───────────┬────────────┬──────────┐
-│ Name      │ X     │ Y    │ Z     │ TPS (cGy) │ Calc (cGy) │ Diff (%) │
-├───────────┼───────┼──────┼───────┼───────────┼────────────┼──────────┤
-│ PtA_left  │ 1.91  │ 2.28 │ -1.25 │ 600.156   │ 600.302    │ -0.024   │
-│ PtA_right │ -2.09 │ 2.11 │ -1.25 │ 613.616   │ 613.782    │ -0.027   │
-└───────────┴───────┴──────┴───────┴───────────┴────────────┴──────────┘
+┌───────────┬───────┬───────┬──────┬──────────┬───────────┬──────────┐
+│ Name      │ X     │ Y     │ Z    │ TPS (Gy) │ Calc (Gy) │ Diff (%) │
+├───────────┼───────┼───────┼──────┼──────────┼───────────┼──────────┤
+│ PtA_left  │ 1.91  │ -1.25 │ 2.28 │ 6.002    │ 5.998     │ 0.066    │
+│ PtA_right │ -2.09 │ -1.25 │ 2.11 │ 6.136    │ 6.132     │ 0.065    │
+└───────────┴───────┴───────┴──────┴──────────┴───────────┴──────────┘
 ----------------------------------------
  Eclipse (PDR)
 ----------------------------------------
-┌────────────┬───────┬────────┬────────┬───────────┬────────────┬──────────┐
-│ Name       │ X     │ Y      │ Z      │ TPS (cGy) │ Calc (cGy) │ Diff (%) │
-├────────────┼───────┼────────┼────────┼───────────┼────────────┼──────────┤
-│ PT A RIGHT │ -4.60 │ -54.81 │ -17.25 │ 22.537    │ 22.613     │ -0.338   │
-│ PT A LEFT  │ -0.62 │ -54.72 │ -17.30 │ 23.173    │ 23.253     │ -0.346   │
-└────────────┴───────┴────────┴────────┴───────────┴────────────┴──────────┘
+┌────────────┬───────┬────────┬────────┬──────────┬───────────┬──────────┐
+│ Name       │ X     │ Y      │ Z      │ TPS (Gy) │ Calc (Gy) │ Diff (%) │
+├────────────┼───────┼────────┼────────┼──────────┼───────────┼──────────┤
+│ PT A RIGHT │ -4.60 │ -17.25 │ -54.81 │ 22.537   │ 22.571    │ -0.151   │
+│ PT A LEFT  │ -0.62 │ -17.30 │ -54.72 │ 23.173   │ 23.178    │ -0.024   │
+└────────────┴───────┴────────┴────────┴──────────┴───────────┴──────────┘
 ```
 
 ### DVH calculation

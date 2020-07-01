@@ -32,7 +32,7 @@ def tpsComp(rp, rs, directory):
             ref = p[0x300a, 0x12].value
             points.append(DosePoint([x/10, y/10, z/10], source, plan, name, ref))
 
-    table_data = [['Name','X','Y','Z','TPS (cGy)','Calc (cGy)','Diff (%)']]
+    table_data = [['Name','X','Y','Z','TPS (Gy)','Calc (Gy)','Diff (%)']]
 
     for pt in points:
         table_data.append([pt.name,
