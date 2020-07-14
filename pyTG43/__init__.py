@@ -456,6 +456,7 @@ class ROI(object):
         self.number = number
         self.name = name
         self.coords = np.empty((0, 3))
+        self.coordslist = []
         self.get_transform(rd)
         self.get_coords(rs, rp)
 
@@ -518,13 +519,11 @@ class ROI(object):
                     and Tag(0x3006, 0x40) in roi.keys()
                 ):
                     for sli in roi.ContourSequence:
-                        self.coords = np.append(
-                            self.coords,
-                            np.array(sli.ContourData).reshape((-1, 3)),
-                            axis=0,
-                        )
-        if len(self.coords) > 0:
-            self.coords = np.round(self.newcoords(self.coords), 1)
+                        xyz = np.array(sli.ContourData).reshape((-1, 3))
+                        xyz = np.round(self.newcoords(xyz), 1)
+                        self.coordslist.append(xyz)
+        if len(self.coordslist) > 0:
+            self.coords = np.concatenate(self.coordslist)
 
     def get_TPS_DVH(self, rp, rs, rd):
         """Compute DVH for TPS-calculated dose distribution.
@@ -550,6 +549,7 @@ class ROI(object):
             if ROIname == self.name:
                 contour = rs.ROIContourSequence[i]
                 if "ContourSequence" in contour:
+                    bool_ref = np.zeros(dose_ref.shape, dtype=bool)
                     dvh = []
                     for sli in contour.ContourSequence:
                         contourCoords = self.newcoords(
@@ -557,15 +557,16 @@ class ROI(object):
                         )
                         index = np.round(np.mean(contourCoords[:, 2]), 2)
                         try:
-                            doseslice = dose_ref[list(zcoords).index(index), :, :]
+                            boolslice = bool_ref[list(zcoords).index(index), :, :]
                             cPath = Path(contourCoords[:, :2])
                             inPath = cPath.contains_points(coords).reshape(
                                 (dose_ref.shape[1], dose_ref.shape[2])
                             )
-                            dvh += list(doseslice[inPath == True])
+                            boolslice = np.logical_xor(inPath, boolslice)
+                            bool_ref[list(zcoords).index(index), :, :] = boolslice
                         except:
                             pass
-                    dvh = np.array(dvh)
+                    dvh = dose_ref[bool_ref == True]
                     self.tpsmin = dvh.min
                     self.tpsmax = dvh.max
                     self.tpsmean = dvh.mean
@@ -584,28 +585,32 @@ class ROI(object):
             grid: grid size for calculation (default 2.5mm)
         """
         self.dvhpts = []
-        coords = self.coords
-        slices = sorted(list(set(coords[:, 2])))
+        slices = sorted(list(set(self.coords[:, 2])))
         for sli in slices:
-            xy = coords[np.where(coords[:, 2] == sli)][:, (0, 1)]
-            minx = xy[:, 0].min() - 0.5
-            maxx = xy[:, 0].max() + 0.5
-            miny = xy[:, 1].min() - 0.5
-            maxy = xy[:, 1].max() + 0.5
-            calcgrid = [
-                [x, y]
-                for y in np.arange(miny, maxy, grid)
-                for x in np.arange(minx, maxx, grid)
-            ]
-            cPath = Path(xy)
-            inPath = cPath.contains_points(calcgrid)
-            calcpts = [calcgrid[i] for i in np.where(inPath)[0]]
-            self.dvhpts.extend(
-                [
-                    list(self.oldcoords([[pt[0], pt[1], sli]])[0, [0, 1, 2]] / 10)
-                    for pt in calcpts
+            shapes = [x for x in self.coordslist if x[0, 2] == sli]
+            if shapes:
+                coords = np.concatenate(shapes)[:, :2]
+                minx = coords[:, 0].min() - 0.5
+                maxx = coords[:, 0].max() + 0.5
+                miny = coords[:, 1].min() - 0.5
+                maxy = coords[:, 1].max() + 0.5
+                calcgrid = [
+                    [x, y]
+                    for y in np.arange(miny, maxy, grid)
+                    for x in np.arange(minx, maxx, grid)
                 ]
-            )
+                boolgrid = [False] * len(calcgrid)
+                for cont in shapes:
+                    cPath = Path(cont[:, :2])
+                    inPath = cPath.contains_points(calcgrid)
+                    boolgrid = np.logical_xor(boolgrid, inPath)
+                calcpts = [calcgrid[i] for i in np.where(boolgrid)[0]]
+                self.dvhpts.extend(
+                    [
+                        list(self.oldcoords([[pt[0], pt[1], sli]])[0, [0, 1, 2]] / 10)
+                        for pt in calcpts
+                    ]
+                )
 
     def __repr__(self):
         if self.name != None:
